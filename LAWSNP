@@ -1,1 +1,43 @@
+from flask import Flask, request, jsonify
+import re
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+
+app = Flask(__name__)
+
+# Initialize NLP pipeline for error detection
+model_name = "bert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSequenceClassification.from_pretrained(model_name)
+nlp = pipeline("text-classification", model=model, tokenizer=tokenizer)
+
+# Define function to check SNP reporting
+def check_snp_reporting(script):
+    errors = []
+
+    # Example: Check for valid SNP ID using regex
+    snp_pattern = re.compile(r'rs[0-9]+')
+    matches = snp_pattern.findall(script)
+    if not matches:
+        errors.append("No valid SNP ID found.")
+
+    # Example: Use NLP model to detect errors
+    result = nlp(script)
+    if result[0]['label'] == 'LABEL_1':  # Assuming LABEL_1 indicates error
+        errors.append("Possible SNP reporting error detected.")
+
+    return errors
+
+# API endpoint for script upload and error detection
+@app.route('/upload_script', methods=['POST'])
+def upload_script():
+    if 'script' not in request.json:
+        return jsonify({'error': 'Script not found in request body'}), 400
+    
+    script = request.json['script']
+    errors = check_snp_reporting(script)
+    
+    return jsonify({'errors': errors}), 200
+
+if __name__ == '__main__':
+    app.run(debug=True)
 
